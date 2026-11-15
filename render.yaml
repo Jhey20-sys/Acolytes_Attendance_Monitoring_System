@@ -1,0 +1,20 @@
+# Render Blueprint: Render reads this file to create the web service.
+# Dashboard → New → Blueprint → pick this repository. Render asks for the two secret values below.
+services:
+  - type: web
+    name: acolytes-attendance
+    runtime: node
+    plan: free
+    region: singapore          # same region as the Supabase project
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true           # every push to main redeploys
+    healthCheckPath: /api/auth/status
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SUPABASE_URL
+        sync: false            # entered in the Render dashboard, never stored in git
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
