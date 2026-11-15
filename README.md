@@ -23,6 +23,9 @@ The terminal prints the "same Wi-Fi" address for the leader app. If Windows asks
 1. **Dashboard** — active / inactive servers, Present / Absent / Excused for the month and for each of the last 6 months, a per-parish breakdown, to-dos (approvals waiting, parishes due for a reshuffle, Masses without a leader account) and notifications.
 2. **Roster** — **Add server**: complete name, parish/chapel (Agusan, Tablon, Puerto), role (Elders, Seniors, Juniors). Status is automatic:
    **3 absences in a row → Inactive**, **scanned present again → Active**. Every server has a personal **QR card** (the **QR** button for one card, **Print QR cards** for everyone in the current filter).
+   **Import from CSV** adds many servers at once. Columns: `Name`, `Parish` (or `Chapel`), `Role`, and optional `Mass` and `Contact` (use **⬇ Template** for a sample).
+   With a `Mass` column (e.g. `1st Mass`, `2`, `8:00 AM`, `Sunday 4:00 PM`), each server is also placed on that Mass's team in their chapel's schedule, starting today.
+   Names already in the roster are matched instead of duplicated, and chapels or Masses that don't exist yet are created. Everything is saved to the database (Supabase) like any other change.
 3. **Schedule** — each Mass has a team. **Shuffle** each parish separately after the 2nd meeting of the month. The shuffle spreads Elders, Seniors and Juniors evenly and moves people off their previous team.
    You can also move people between teams by hand. Share the schedule with **Save image for Messenger**, **Copy as text**, **Print**, or **Print team QR cards**.
 4. **Attendance** — see and change any mark (P / A / E) per parish and date.

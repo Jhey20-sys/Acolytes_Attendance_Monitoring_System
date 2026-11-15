@@ -354,7 +354,8 @@ function viewRoster() {
         </form>
         <div class="card stack">
           <h3>Import from CSV</h3>
-          <p class="muted small" style="margin:0">Columns: <b>Name</b> (or First Name / Last Name), <b>Parish</b>, <b>Role</b>, optional <b>Contact</b>.</p>
+          <p class="muted small" style="margin:0">Columns: <b>Name</b> (or First Name / Last Name), <b>Parish</b> (or Chapel), <b>Role</b>, optional <b>Mass</b> and <b>Contact</b>.</p>
+          <p class="muted small" style="margin:0"><b>Mass</b> puts the server on that Mass's team in their chapel's schedule, starting today. Write it as <i>1st Mass</i>, <i>2</i>, <i>8:00 AM</i> or <i>Sunday 4:00 PM</i>. Names already in the roster are matched, not duplicated. New chapels and Masses are created automatically.</p>
           <div class="row">
             <label class="btn" style="margin:0; cursor:pointer">📄 Choose CSV<input type="file" accept=".csv,text/csv,.txt" data-action="import-csv" hidden></label>
             <button class="sm" data-action="csv-template">⬇ Template</button>
@@ -824,32 +825,152 @@ function parseCsv(text) {
 const COLS = {
   name: ['name', 'fullname', 'completename', 'servername', 'acolyte'],
   first: ['firstname', 'first', 'givenname'], middle: ['middlename', 'middle', 'mi'], last: ['lastname', 'last', 'surname'],
-  parish: ['parish', 'chapel', 'parishchapel', 'parishorchapel', 'team'], role: ['role', 'roleinministry', 'level', 'rank'],
+  parish: ['parish', 'chapel', 'parishchapel', 'parishorchapel'], role: ['role', 'roleinministry', 'level', 'rank'],
+  mass: ['mass', 'massschedule', 'schedule', 'masstime', 'team', 'assignedmass'],
   contact: ['contact', 'contactno', 'contactnumber', 'phone', 'mobile', 'cellphone', 'email'],
 };
+
+/**
+ * Read a Mass cell such as "1st Mass", "Second", "2", "8:00 AM", "Sunday 4:00 PM" or "16:00".
+ * Returns { index } (0-based Mass number), and/or { day, time } when a time is given.
+ */
+function parseMassCell(v) {
+  const s = String(v || '').toLowerCase().trim();
+  if (!s) return null;
+  const out = {};
+  const day = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].findIndex(d => new RegExp(`\\b${d}`).test(s));
+  if (day >= 0) out.day = day;
+  const t = s.match(/(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?\s*m\b\.?/) || s.match(/(\d{1,2})[:.](\d{2})/);
+  if (t) {
+    let h = Number(t[1]); const m = Number(t[2] || 0);
+    if (t[3] === 'p' && h < 12) h += 12;
+    if (t[3] === 'a' && h === 12) h = 0;
+    if (h < 24 && m < 60) out.time = `${pad(h)}:${pad(m)}`;
+  }
+  if (!out.time) {
+    const words = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
+    const w = words.findIndex(x => s.includes(x));
+    const n = s.match(/(?:^|\bm|\bmass\s*#?\s*)(\d)(?:st|nd|rd|th)?\b/) || s.match(/\b(\d)(?:st|nd|rd|th)?\b/);
+    if (w >= 0) out.index = w; else if (n) out.index = Number(n[1]) - 1;
+    if (out.index !== undefined && (out.index < 0 || out.index > 7)) delete out.index;
+  }
+  return out.time || out.index !== undefined ? out : null;
+}
+
+/**
+ * Import servers from a CSV. Columns: Name (or First/Middle/Last), Parish/Chapel, Role, optional Mass, optional Contact.
+ * - New names are added to the roster; names already in the roster are matched (not duplicated).
+ * - Chapels and Masses that don't exist yet are created.
+ * - When a Mass column is present, each server is placed on that Mass's team in their chapel's schedule
+ *   (effective today). Servers not listed in the file keep their current team.
+ */
 function importCsv(text) {
   const rows = parseCsv(text);
-  const norm = s => s.toLowerCase().replace(/[^a-z]/g, '');
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const map = {};
-  (rows[0] || []).forEach((h, i) => { for (const [k, names] of Object.entries(COLS)) if (map[k] === undefined && names.includes(norm(h))) map[k] = i; });
+  (rows[0] || []).forEach((h, i) => { for (const [k, names] of Object.entries(COLS)) if (map[k] === undefined && names.includes(norm(h).replace(/[0-9]/g, ''))) map[k] = i; });
   if (map.name === undefined && map.first === undefined) return toast('Could not find a Name column in the first row.');
   const get = (r, k) => (map[k] !== undefined ? (r[map[k]] || '').trim() : '');
-  const findParish = v => parishes().find(p => norm(p.name) === norm(v) || p.id === norm(v))?.id || '';
   const findRole = v => state.settings.roles.find(r => norm(r) === norm(v) || norm(r) === `${norm(v)}s`) || '';
-  const existing = new Set(state.servers.map(s => s.name.toLowerCase()));
-  const add = [];
+
+  // Work on copies so nothing changes unless the admin confirms.
+  const parishList = JSON.parse(JSON.stringify(parishes()));
+  const newParishes = [], newMasses = [];
+  const findParish = v => parishList.find(p => norm(p.name) === norm(v) || p.id === norm(v));
+  function parishFor(v) {
+    if (!v) return null;
+    let p = findParish(v);
+    if (!p) {
+      let id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'parish';
+      while (parishList.some(x => x.id === id)) id += '-2';
+      p = { id, name: v.replace(/\s+/g, ' ').trim().slice(0, 60), masses: [] };
+      parishList.push(p); newParishes.push(p.name);
+    }
+    return p;
+  }
+  function massFor(p, cell) {
+    const m = parseMassCell(cell);
+    if (!m) return null;
+    let found;
+    if (m.time) found = p.masses.find(x => x.time === m.time && (m.day === undefined || x.day === m.day));
+    else found = p.masses[m.index];
+    if (found) return found.id;
+    if (p.masses.length >= 8) return null;
+    if (m.time) {
+      const nm = { id: `m${uid()}`, day: m.day ?? p.masses[0]?.day ?? 0, time: m.time };
+      p.masses.push(nm); newMasses.push(`${p.name} ${DAY_NAMES[nm.day]} ${fmtTime(nm.time)}`);
+      return nm.id;
+    }
+    while (p.masses.length <= m.index) {
+      const last = p.masses[p.masses.length - 1];
+      const nm = { id: `m${uid()}${p.masses.length}`, day: last ? last.day : 0, time: last ? last.time : '07:00' };
+      p.masses.push(nm); newMasses.push(`${p.name} ${massName(p.masses.length - 1)} (set its time in Settings)`);
+    }
+    return p.masses[m.index].id;
+  }
+
+  const byName = new Map(state.servers.map(s => [s.name.toLowerCase(), s]));
+  const add = [], fill = [], seen = new Set();
+  const assign = {}; // parishId -> { serverId: massId }
+  let unknownMass = 0, noParish = 0;
   for (const r of rows.slice(1)) {
     const name = (get(r, 'name') || [get(r, 'first'), get(r, 'middle'), get(r, 'last')].filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
-    if (!name || existing.has(name.toLowerCase())) continue;
-    existing.add(name.toLowerCase());
-    add.push({ id: uid(), name, parish: findParish(get(r, 'parish')), role: findRole(get(r, 'role')), contact: get(r, 'contact'), active: true, since: todayStr() });
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    const p = parishFor(get(r, 'parish'));
+    if (!p) noParish++;
+    const role = findRole(get(r, 'role'));
+    let s = byName.get(name.toLowerCase());
+    if (!s) {
+      s = { id: uid(), name: name.slice(0, 100), parish: p?.id || '', role, contact: get(r, 'contact'), active: true, since: todayStr() };
+      add.push(s);
+    } else if ((!s.parish && p) || (!s.role && role)) {
+      fill.push({ s, parish: s.parish || p?.id || '', role: s.role || role });
+    }
+    if (map.mass !== undefined && get(r, 'mass')) {
+      const mp = p || parishList.find(x => x.id === s.parish);
+      const mid = mp && massFor(mp, get(r, 'mass'));
+      if (mid) (assign[mp.id] = assign[mp.id] || {})[s.id] = mid; else unknownMass++;
+    }
   }
-  if (!add.length) return toast('No new names found (duplicates are skipped).');
-  const noParish = add.filter(a => !a.parish).length;
-  if (!confirm(`Add ${add.length} new server(s)?${noParish ? `\n\n${noParish} have no matching parish — you can set it with Edit.` : ''}`)) return;
+
+  parishList.forEach(p => { if (!p.masses.length) p.masses.push({ id: `m${uid()}`, day: 0, time: '07:00' }); });
+  const assigned = Object.values(assign).reduce((n, a) => n + Object.keys(a).length, 0);
+  if (!add.length && !fill.length && !assigned) return toast('Nothing to import: no new names or Mass assignments found.');
+  const lines = [];
+  if (add.length) lines.push(`• Add ${add.length} new server(s)`);
+  const matched = seen.size - add.length;
+  if (matched) lines.push(`• ${matched} name(s) already in the roster are matched, not duplicated${fill.length ? ` (${fill.length} get a missing parish/role filled in)` : ''}`);
+  if (newParishes.length) lines.push(`• Create parish / chapel: ${newParishes.join(', ')}`);
+  if (newMasses.length) lines.push(`• Create Mass: ${newMasses.join('; ')}`);
+  if (assigned) lines.push(`• Put ${assigned} server(s) on Mass teams in ${Object.keys(assign).map(id => parishList.find(p => p.id === id).name).join(', ')} (schedule effective today, ${niceDate(todayStr())})`);
+  if (noParish) lines.push(`• ${noParish} row(s) have no parish / chapel; set it later with Edit`);
+  if (unknownMass) lines.push(`• ${unknownMass} Mass value(s) could not be read; those servers are not put on a team`);
+  if (!confirm(`Import this CSV?\n\n${lines.join('\n')}`)) return;
+
+  state.settings.parishes = parishList;
   state.servers.push(...add);
+  fill.forEach(f => { f.s.parish = f.parish; f.s.role = f.role; });
+  const today = todayStr();
+  for (const [pid, a] of Object.entries(assign)) {
+    const p = parishList.find(x => x.id === pid);
+    const list = state.schedules[pid] || [];
+    let entry = list.find(e => e.from === today);
+    if (!entry) {
+      const cur = scheduleOn(pid, today);
+      entry = { id: uid(), from: today, generatedAt: new Date().toISOString(), teams: JSON.parse(JSON.stringify(cur?.teams || {})) };
+      list.push(entry);
+    }
+    p.masses.forEach(m => { entry.teams[m.id] = entry.teams[m.id] || []; });
+    for (const [sid, mid] of Object.entries(a)) {
+      Object.keys(entry.teams).forEach(k => { entry.teams[k] = entry.teams[k].filter(id => id !== sid); });
+      entry.teams[mid].push(sid);
+    }
+    state.schedules[pid] = list;
+    if (ui.schParish === pid) ui.schEntry = entry.id;
+  }
   save(); render();
-  toast(`${add.length} server(s) added.`);
+  toast(`Imported: ${add.length} new server(s)${assigned ? `, ${assigned} placed on Mass teams` : ''}.`);
 }
 
 /* ---------------- Polling: leader scans & submissions show up live ---------------- */
@@ -919,9 +1040,15 @@ document.addEventListener('click', async e => {
       download(`roster-${todayStr()}.csv`, toCsv([['Name', 'Parish', 'Role', 'Status', 'Contact', 'QR code'],
         ...sortedServers().map(s => [s.name, parishName(s.parish), s.role, s.active ? 'Active' : 'Inactive', s.contact || '', s.code])]), 'text/csv');
       return;
-    case 'csv-template':
-      download('roster-template.csv', toCsv([['Name', 'Parish', 'Role', 'Contact'], ['Juan Dela Cruz', parishes()[0]?.name || 'Agusan', 'Juniors', '09171234567']]), 'text/csv');
+    case 'csv-template': {
+      const p = parishes()[0], q = parishes()[1] || p;
+      const mass = (pp, i) => { const m = pp?.masses[i] || pp?.masses[0]; return m ? `${massName(pp.masses.indexOf(m))} (${DAY_NAMES[m.day]} ${fmtTime(m.time)})` : '1st Mass'; };
+      download('roster-template.csv', toCsv([['Name', 'Parish', 'Role', 'Mass', 'Contact'],
+        ['Juan Dela Cruz', p?.name || 'Agusan', 'Seniors', mass(p, 0), '09171234567'],
+        ['Maria Santos', p?.name || 'Agusan', 'Juniors', mass(p, 1), ''],
+        ['Paolo Reyes', q?.name || 'Tablon', 'Elders', mass(q, 0), '']]), 'text/csv');
       return;
+    }
 
     /* schedule */
     case 'sch-parish': ui.schParish = el.dataset.p; ui.schEntry = null; break;
