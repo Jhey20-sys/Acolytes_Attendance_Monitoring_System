@@ -496,7 +496,7 @@ async function scheduleImage(pid, entry) {
   const g = c.getContext('2d');
   const font = (w, s) => `${w} ${s}px system-ui, "Segoe UI", Roboto, sans-serif`;
   g.fillStyle = '#faf7f2'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#7a1f2b'; g.fillRect(0, 0, W, 240);
+  g.fillStyle = '#b7191c'; g.fillRect(0, 0, W, 240);
   const logo = new Image();
   await new Promise(r => { logo.onload = r; logo.onerror = r; logo.src = 'logo.png'; });
   try { g.drawImage(logo, padX, 52, 136, 136); } catch (e) { /* no logo */ }
@@ -509,7 +509,7 @@ async function scheduleImage(pid, entry) {
     g.fillStyle = '#ffffff'; g.strokeStyle = '#e4dcd1'; g.lineWidth = 2;
     g.beginPath(); g.roundRect ? g.roundRect(padX - 16, y, W - padX * 2 + 32, h, 18) : g.rect(padX - 16, y, W - padX * 2 + 32, h); g.fill(); g.stroke();
     g.fillStyle = '#b8892b'; g.fillRect(padX - 16, y, 8, h);
-    g.fillStyle = '#7a1f2b'; g.font = font(700, 34); g.fillText(b.title, padX + 12, y + 52);
+    g.fillStyle = '#b7191c'; g.font = font(700, 34); g.fillText(b.title, padX + 12, y + 52);
     g.font = font(500, 30);
     if (!b.names.length) { g.fillStyle = '#776d66'; g.fillText('—', padX + 12, y + 74 + 30); }
     b.names.forEach((x, i) => {
@@ -854,8 +854,8 @@ async function printQrCards(ids, title) {
       body{font-family:system-ui,sans-serif;margin:0;padding:12px;color:#000}
       .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
       .card{border:1.5px dashed #999;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
-      .top{display:flex;gap:8px;align-items:center;text-align:left;border-bottom:2px solid #7a1f2b;padding-bottom:6px;margin-bottom:6px}
-      .top img{width:34px;height:34px}.top b{display:block;font-size:11px}.top span{font-size:10px;color:#7a1f2b;font-weight:700;text-transform:uppercase}
+      .top{display:flex;gap:8px;align-items:center;text-align:left;border-bottom:2px solid #b7191c;padding-bottom:6px;margin-bottom:6px}
+      .top img{width:34px;height:34px}.top b{display:block;font-size:11px}.top span{font-size:10px;color:#b7191c;font-weight:700;text-transform:uppercase}
       .qr svg{width:150px;height:150px}.nm{font-weight:700;font-size:14px}.meta{font-size:12px}.code{font-family:monospace;font-size:11px;color:#555;letter-spacing:1px}
       h1{font-size:16px;margin:0 0 8px}@media print{h1{display:none}body{padding:0}}
     </style></head><body><h1>${esc(title)} — cut along the dashed lines</h1><div class="grid">${cards}</div></body></html>`);

@@ -6,14 +6,14 @@
   --surface: var(--card);
   --surface-2: var(--muted);
   --primary-ink: var(--primary-foreground);
-  --gold: var(--accent);
+  --gold: oklch(0.56 0.12 75);  /* deeper logo gold so gold text stays readable */
 
   /* status colors (not part of shadcn's palette) */
   --ok: #2f7d4a;     --ok-bg: #e3f3e8;
   --warn: #9a6400;   --warn-bg: #fdf1d8;
   --bad: var(--destructive);
   --bad-bg: color-mix(in oklab, var(--destructive) 12%, var(--card));
-  --info: #3b5b9a;   --info-bg: #e5ecf8;
+  --info: #224fa7;   --info-bg: #e3ebfa;  /* logo royal blue */
 
   /* glass — derived from the theme, so it follows any tweakcn theme */
   --glass-bg: color-mix(in oklab, var(--card) 55%, transparent);
@@ -22,19 +22,20 @@
   --glass-shadow: 0 8px 32px -8px color-mix(in oklab, var(--primary) 22%, transparent), inset 0 1px 0 rgb(255 255 255 / .8);
   --aura-1: color-mix(in oklab, var(--primary) 16%, transparent);
   --aura-2: color-mix(in oklab, var(--accent) 18%, transparent);
-  --aura-3: color-mix(in oklab, var(--ring) 8%, transparent);
+  --aura-3: color-mix(in oklab, var(--ring) 12%, transparent);
 }
 .dark {
+  --gold: var(--accent);
   --ok: #6fcf8f;     --ok-bg: #1f3427;
   --warn: #f0bf5a;   --warn-bg: #3a2f17;
-  --info: #9db6ea;   --info-bg: #1f2a40;
+  --info: #8fb4f2;   --info-bg: #1c2a48;
   --glass-bg: color-mix(in oklab, var(--card) 50%, transparent);
   --glass-border: rgb(255 255 255 / .10);
   --glass-edge: rgb(255 255 255 / .06);
   --glass-shadow: 0 8px 32px -8px rgb(0 0 0 / .6), inset 0 1px 0 rgb(255 255 255 / .07);
   --aura-1: color-mix(in oklab, var(--primary) 22%, transparent);
   --aura-2: color-mix(in oklab, var(--accent) 12%, transparent);
-  --aura-3: color-mix(in oklab, var(--ring) 10%, transparent);
+  --aura-3: color-mix(in oklab, var(--ring) 14%, transparent);
 }
 
 * { box-sizing: border-box; }
