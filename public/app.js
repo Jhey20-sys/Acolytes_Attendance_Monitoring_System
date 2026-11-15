@@ -494,14 +494,16 @@ async function scheduleImage(pid, entry) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  const font = (w, s) => `${w} ${s}px system-ui, "Segoe UI", Roboto, sans-serif`;
-  g.fillStyle = '#faf7f2'; g.fillRect(0, 0, W, H);
+  const font = (w, s) => `${w} ${s}px Inter, system-ui, "Segoe UI", Roboto, sans-serif`;
+  const title = (w, s) => `${w} ${s}px Cinzel, Georgia, serif`;
+  try { await Promise.all([document.fonts.load(title(700, 56)), document.fonts.load(font(500, 30))]); } catch (e) { /* fall back to system fonts */ }
+  g.fillStyle = '#fbf9f5'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#b7191c'; g.fillRect(0, 0, W, 240);
   const logo = new Image();
   await new Promise(r => { logo.onload = r; logo.onerror = r; logo.src = 'logo.png'; });
   try { g.drawImage(logo, padX, 52, 136, 136); } catch (e) { /* no logo */ }
-  g.fillStyle = '#f3d27a'; g.font = font(700, 30); g.fillText(state.settings.ministry.toUpperCase(), padX + 164, 92);
-  g.fillStyle = '#fff'; g.font = font(800, 56); g.fillText(`${p.name} Schedule`, padX + 164, 154);
+  g.fillStyle = '#f3d27a'; g.font = title(700, 30); g.fillText(state.settings.ministry.toUpperCase(), padX + 164, 92);
+  g.fillStyle = '#fff'; g.font = title(700, 56); g.fillText(`${p.name} Schedule`, padX + 164, 154);
   g.font = font(400, 30); g.fillText(`Effective ${longDate(entry.from)}`, padX + 164, 200);
   let y = 280;
   for (const b of blocks) {
@@ -509,21 +511,21 @@ async function scheduleImage(pid, entry) {
     g.fillStyle = '#ffffff'; g.strokeStyle = '#e4dcd1'; g.lineWidth = 2;
     g.beginPath(); g.roundRect ? g.roundRect(padX - 16, y, W - padX * 2 + 32, h, 18) : g.rect(padX - 16, y, W - padX * 2 + 32, h); g.fill(); g.stroke();
     g.fillStyle = '#b8892b'; g.fillRect(padX - 16, y, 8, h);
-    g.fillStyle = '#b7191c'; g.font = font(700, 34); g.fillText(b.title, padX + 12, y + 52);
+    g.fillStyle = '#b7191c'; g.font = title(700, 32); g.fillText(b.title, padX + 12, y + 52);
     g.font = font(500, 30);
-    if (!b.names.length) { g.fillStyle = '#776d66'; g.fillText('—', padX + 12, y + 74 + 30); }
+    if (!b.names.length) { g.fillStyle = '#5f6577'; g.fillText('—', padX + 12, y + 74 + 30); }
     b.names.forEach((x, i) => {
       const col = i % 2, row = Math.floor(i / 2);
       const tx = padX + 12 + col * (colW + 32), ty = y + 74 + row * lineH + 30;
-      g.fillStyle = '#2a2522'; g.font = font(500, 30);
+      g.fillStyle = '#1a2033'; g.font = font(500, 30);
       let name = x.n; while (g.measureText(name).width > colW - 110 && name.length > 4) name = name.slice(0, -2);
       if (name !== x.n) name += '…';
       g.fillText(name, tx, ty);
-      if (x.r) { const nw = g.measureText(name).width; g.fillStyle = '#776d66'; g.font = font(400, 22); g.fillText(x.r, tx + nw + 12, ty); }
+      if (x.r) { const nw = g.measureText(name).width; g.fillStyle = '#5f6577'; g.font = font(400, 22); g.fillText(x.r, tx + nw + 12, ty); }
     });
     y += h + 24;
   }
-  g.fillStyle = '#776d66'; g.font = font(400, 26);
+  g.fillStyle = '#5f6577'; g.font = font(400, 26);
   g.fillText('Please bring your QR card. God bless your service!', padX, H - 44);
   return new Promise(r => c.toBlob(r, 'image/png'));
 }
