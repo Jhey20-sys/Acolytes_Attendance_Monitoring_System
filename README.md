@@ -41,6 +41,9 @@ The terminal prints the "same Wi-Fi" address for the leader app. If Windows asks
 3. **Schedule** — each Mass has a team. **Shuffle** each parish separately after the 2nd meeting of the month. The shuffle spreads Elders, Seniors and Juniors evenly and moves people off their previous team.
    You can also move people between teams by hand. Share the schedule with **Save image for Messenger**, **Copy as text**, **Print**, or **Print team QR cards**.
 4. **Attendance** — see and change any mark (P / A / E) per parish and date.
+   **🗂 Archive / remove logs** opens a panel to clean up old logs (a log is one Mass on one date: its marks and the leader's report). Pick a parish (or all) and a date range, or press **This day**, then:
+   **Archive** moves the logs out of Attendance, the Dashboard and Monthly Reports but keeps them, so they can be **downloaded as CSV** or **restored** later; **Delete permanently** erases them (asks twice).
+   Archived logs are included in **Settings → Export backup**.
 5. **Approvals** — servers who served at a Mass they're not assigned to, with the leader's reason. They count as Present only after approval.
 6. **Monthly Reports** — per parish: active and inactive servers with name, parish/chapel, role, and totals of Present / Absent / Excuses. Sort by "Most present" when choosing servers for big occasions. Print or CSV.
 7. **Settings** — parishes and Mass times, leader accounts (one per Mass), rules, time zone, admin accounts, backup.
@@ -83,7 +86,7 @@ Other options: any Node.js host, or a parish computer with Cloudflare Tunnel (`c
 npm test
 ```
 
-Runs 65 tests with Node's built-in test runner (no extra packages):
+Runs 74 tests with Node's built-in test runner (no extra packages):
 
 - **Unit tests** (`test/unit.test.js`): the admin website's logic without a browser or server: CSV reading and writing, the Mass column, the CSV import with Mass teams, the team shuffle, monthly counts, and date/time helpers.
 - **Smoke tests** (`test/smoke.test.js`): start a real copy of the server and go through the main flows over HTTP: pages and logo, admin and leader logins, saving servers and teams, QR scanning, excuses, submitting a report, approvals, the 3-absences rule, QR card links and logout.

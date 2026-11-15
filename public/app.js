@@ -49,6 +49,7 @@ const ui = {
   editing: null,
   schParish: null, schEntry: null,
   attParish: null, attDate: todayStr(),
+  logsOpen: false, logParish: null, logFrom: '', logTo: '',
   repMonth: thisMonth(), repParish: '', repSort: 'name',
   info: null, admins: null, appQr: null,
 };
@@ -544,10 +545,82 @@ function viewAttendance() {
         <input type="date" value="${date}" data-action="att-date" aria-label="Date">
         <button data-action="att-day" data-d="1" aria-label="Next day">›</button>
         <button data-action="att-day" data-d="7" aria-label="Next week">››</button>
+        <button data-action="logs-toggle" aria-expanded="${ui.logsOpen}">🗂 Archive / remove logs</button>
       </div>
     </div>
+    ${ui.logsOpen ? logsPanel() : ''}
     ${masses.length ? `<div class="grid">${masses.map(m => attendanceCard(p, m, date)).join('')}</div>`
       : `<div class="card empty">${esc(p.name)} has no Mass on ${DAY_NAMES[dow]}. Masses are on: ${days.join(', ') || 'none — add them in Settings'}.</div>`}`;
+}
+
+/* ----- Attendance logs: archive / remove ----- */
+/** Mass log keys (date#parish#mass) matching the panel's filter, in the active logs or in the archive. */
+function logKeys(where) {
+  const keys = where === 'archive' ? Object.keys(state.archiveIndex || {})
+    : [...new Set([...Object.keys(state.attendance), ...Object.keys(state.submissions)])];
+  return keys.filter(k => {
+    const m = splitKey(k);
+    return (!ui.logParish || m.parish === ui.logParish) && (!ui.logFrom || m.date >= ui.logFrom) && (!ui.logTo || m.date <= ui.logTo);
+  }).sort();
+}
+function logFilterLabel() {
+  const where = ui.logParish ? parishName(ui.logParish) : 'all parishes';
+  if (ui.logFrom && ui.logFrom === ui.logTo) return `${where} on ${niceDate(ui.logFrom)}`;
+  if (ui.logFrom || ui.logTo) return `${where}, ${ui.logFrom ? niceDate(ui.logFrom) : 'the first log'} to ${ui.logTo ? niceDate(ui.logTo) : 'the latest log'}`;
+  return `${where}, all dates`;
+}
+function logsPanel() {
+  const active = logKeys('active');
+  const marks = active.reduce((n, k) => n + Object.keys(state.attendance[k] || {}).length, 0);
+  const pending = active.reduce((n, k) => n + Object.values(state.attendance[k] || {}).filter(r => r.pending).length, 0);
+  const archived = logKeys('archive');
+  const archivedMarks = archived.reduce((n, k) => n + (state.archiveIndex[k] || 0), 0);
+  const totalArchived = Object.keys(state.archiveIndex || {}).length;
+  return `<div class="card stack" style="margin-bottom:16px">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Archive or remove attendance logs</h3>
+      <button class="sm" data-action="logs-toggle">Close</button></div>
+    <p class="muted small" style="margin:0">A log is one Mass on one date: its marks (Present / Absent / Excused) and the leader's submitted report.
+      <b>Archive</b> moves logs out of Attendance, the Dashboard and Monthly Reports, but keeps them so you can download or restore them later.
+      <b>Delete permanently</b> erases them.</p>
+    <div class="row">
+      <div><label for="logParish">Parish / chapel</label><select id="logParish" data-action="log-parish">${parishOptions(ui.logParish || '', 'All parishes')}</select></div>
+      <div><label for="logFrom">From</label><input id="logFrom" type="date" value="${ui.logFrom}" data-action="log-from"></div>
+      <div><label for="logTo">To</label><input id="logTo" type="date" value="${ui.logTo}" data-action="log-to"></div>
+      <div style="align-self:flex-end" class="row">
+        <button class="sm" data-action="log-day">This day (${niceDate(ui.attDate)})</button>
+        <button class="sm" data-action="log-clear">All dates</button>
+      </div>
+    </div>
+    <div class="muted small">Selected: <b>${esc(logFilterLabel())}</b> · ${active.length} Mass log(s), ${marks} mark(s)${pending ? ` · <span style="color:var(--warn)">${pending} waiting for approval</span>` : ''}</div>
+    <div class="row">
+      <button class="primary" data-action="logs-run" data-op="archive" ${active.length ? '' : 'disabled'}>🗂 Archive ${active.length} log(s)</button>
+      <button class="danger" data-action="logs-run" data-op="delete" ${active.length ? '' : 'disabled'}>🗑 Delete permanently</button>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+    <h4 style="margin:0">Archived logs</h4>
+    ${totalArchived ? `<div class="muted small">${totalArchived} archived Mass log(s) in total · ${archived.length} match the selection above (${archivedMarks} mark(s)).</div>
+      <div class="row">
+        <button class="sm" data-action="logs-download">⬇ Download archive (CSV)</button>
+        <button class="sm" data-action="logs-run" data-op="restore" ${archived.length ? '' : 'disabled'}>↩ Restore ${archived.length} selected</button>
+        <button class="sm danger" data-action="logs-run" data-op="purge" ${archived.length ? '' : 'disabled'}>🗑 Delete ${archived.length} selected from archive</button>
+      </div>` : '<div class="muted small">Nothing archived yet.</div>'}
+  </div>`;
+}
+
+/** Turn archived logs into CSV rows. */
+function archiveCsv(arch) {
+  const keys = [...new Set([...Object.keys(arch.attendance), ...Object.keys(arch.submissions)])].sort();
+  const rows = [['Date', 'Parish / Chapel', 'Mass', 'Name', 'Role', 'Mark', 'Pending approval', 'Reason', 'Recorded by', 'Report submitted by', 'Archived at']];
+  for (const k of keys) {
+    const { date, parish, mass } = splitKey(k);
+    const sub = arch.submissions[k];
+    const recs = Object.entries(arch.attendance[k] || {});
+    const base = [date, parishName(parish), massLabel(parish, mass)];
+    const tail = [sub ? `${sub.by} (${fmtWhen(sub.at)})` : '', arch.archivedAt[k] ? fmtWhen(arch.archivedAt[k]) : ''];
+    if (!recs.length) rows.push([...base, '', '', '', '', '', '', ...tail]);
+    for (const [id, r] of recs) rows.push([...base, nameOf(id), byId(id)?.role || '', STATUS[r.s] || r.s, r.pending ? 'Yes' : '', r.reason || '', r.by || '', ...tail]);
+  }
+  return toCsv(rows);
 }
 
 function attendanceCard(p, m, date) {
@@ -1097,6 +1170,41 @@ document.addEventListener('click', async e => {
 
     /* attendance */
     case 'att-day': ui.attDate = addDays(ui.attDate, Number(el.dataset.d)); break;
+    case 'logs-toggle':
+      ui.logsOpen = !ui.logsOpen;
+      if (ui.logsOpen && ui.logParish === null) { ui.logParish = ui.attParish; ui.logFrom = ui.logTo = ui.attDate; }
+      break;
+    case 'log-day': ui.logParish = ui.attParish; ui.logFrom = ui.logTo = ui.attDate; break;
+    case 'log-clear': ui.logFrom = ''; ui.logTo = ''; break;
+    case 'logs-run': {
+      const op = el.dataset.op;
+      const keys = logKeys(op === 'archive' || op === 'delete' ? 'active' : 'archive');
+      if (!keys.length) return toast('No logs match the selection.');
+      const pending = op === 'archive' || op === 'delete'
+        ? keys.reduce((n, k) => n + Object.values(state.attendance[k] || {}).filter(r => r.pending).length, 0) : 0;
+      const what = `${keys.length} Mass log(s) for ${logFilterLabel()}`;
+      const msg = {
+        archive: `Archive ${what}?\n\nThey leave Attendance, the Dashboard and Monthly Reports, but are kept. You can download or restore them later.`,
+        delete: `Permanently delete ${what}?\n\nThis erases the marks and the leaders' submitted reports. It cannot be undone. Consider "Archive" instead.`,
+        restore: `Restore ${what} from the archive?\n\nThey come back to Attendance, the Dashboard and Monthly Reports.`,
+        purge: `Permanently delete ${what} from the archive?\n\nThis cannot be undone. Download the archive first if you want a copy.`,
+      }[op] + (pending ? `\n\n${pending} record(s) are still waiting for approval and will leave the Approvals list.` : '');
+      if (!confirm(msg)) return;
+      if ((op === 'delete' || op === 'purge') && !confirm(`Last check: permanently delete ${keys.length} Mass log(s)?`)) return;
+      try {
+        const r = await api('POST', '/api/logs', { action: op, parish: ui.logParish || '', from: ui.logFrom, to: ui.logTo });
+        applySnapshot(r);
+        toast({ archive: 'Archived', delete: 'Deleted', restore: 'Restored', purge: 'Deleted from archive' }[op] + `: ${r.changed} Mass log(s).`);
+      } catch (err) { toast(err.message); }
+      return;
+    }
+    case 'logs-download': {
+      try {
+        const arch = await api('GET', '/api/logs/archive');
+        download(`attendance-archive-${todayStr()}.csv`, archiveCsv(arch), 'text/csv');
+      } catch (err) { toast(err.message); }
+      return;
+    }
     case 'mark': {
       const { key, id, s } = el.dataset;
       const cur = state.attendance[key]?.[id];
@@ -1182,7 +1290,9 @@ document.addEventListener('click', async e => {
       return;
     case 'export-json': {
       const { servers, settings, schedules, attendance, submissions } = state;
-      download(`altar-servers-backup-${todayStr()}.json`, JSON.stringify({ servers, settings, schedules, attendance, submissions }, null, 2), 'application/json');
+      let archive;
+      try { archive = await api('GET', '/api/logs/archive'); } catch (err) { return toast(`Backup not made: ${err.message}`); }
+      download(`altar-servers-backup-${todayStr()}.json`, JSON.stringify({ servers, settings, schedules, attendance, submissions, archive }, null, 2), 'application/json');
       return;
     }
     case 'reset':
@@ -1225,6 +1335,9 @@ document.addEventListener('change', e => {
       save(); break;
     }
     case 'att-parish': ui.attParish = el.value; break;
+    case 'log-parish': ui.logParish = el.value; break;
+    case 'log-from': ui.logFrom = el.value; break;
+    case 'log-to': ui.logTo = el.value; break;
     case 'att-date': if (!el.value) return; ui.attDate = el.value; break;
     case 'add-other':
       if (!el.value) return;

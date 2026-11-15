@@ -218,6 +218,48 @@ describe('Smoke: admin and leader flow', () => {
     assert.equal(link.status, 302);
     assert.equal(link.headers.get('location'), `/app?code=${codes['Ana Lim']}`);
   });
+  it('archives one day\'s Mass log: it leaves the active logs but is kept in the archive', async () => {
+    const key = `${date}#agusan#m1`;
+    const r = await admin('POST', '/api/logs', { action: 'archive', parish: 'agusan', from: date, to: date });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.changed, 1);
+    assert.equal(r.json.attendance[key], undefined);
+    assert.equal(r.json.submissions[key], undefined);
+    assert.equal(r.json.archiveIndex[key], 4, 'Ana, Ben, Carl and Dina are archived');
+    const arch = (await admin('GET', '/api/logs/archive')).json;
+    assert.equal(arch.attendance[key][ids['Ana Lim']].s, 'P');
+    assert.ok(arch.submissions[key]);
+  });
+  it('restores archived logs back to the active logs', async () => {
+    const key = `${date}#agusan#m1`;
+    const r = await admin('POST', '/api/logs', { action: 'restore', parish: 'agusan', from: date, to: date });
+    assert.equal(r.json.changed, 1);
+    assert.equal(r.json.attendance[key][ids['Ana Lim']].s, 'P');
+    assert.ok(r.json.submissions[key]);
+    assert.deepEqual(r.json.archiveIndex, {});
+  });
+  it('only touches logs inside the chosen parish and dates', async () => {
+    const r = await admin('POST', '/api/logs', { action: 'archive', parish: 'tablon' });
+    assert.equal(r.json.changed, 0);
+    const bad = await admin('POST', '/api/logs', { action: 'archive', from: '2026-12-31', to: '2026-01-01' });
+    assert.equal(bad.status, 400);
+  });
+  it('deletes logs permanently, and purges archived logs', async () => {
+    let r = await admin('POST', '/api/logs', { action: 'archive', parish: 'agusan', from: '2026-02-01', to: '2026-02-08' });
+    assert.equal(r.json.changed, 2);
+    r = await admin('POST', '/api/logs', { action: 'purge', parish: 'agusan', from: '2026-02-01', to: '2026-02-08' });
+    assert.equal(r.json.changed, 2);
+    assert.deepEqual(r.json.archiveIndex, {});
+    r = await admin('POST', '/api/logs', { action: 'delete', parish: 'agusan', from: '2026-12-06', to: '2026-12-06' });
+    assert.equal(r.json.changed, 1);
+    assert.equal(r.json.attendance['2026-12-06#agusan#m1'], undefined);
+    assert.ok(r.json.notifications.some(n => n.kind === 'logs'));
+  });
+  it('requires an admin login to archive or remove logs', async () => {
+    assert.equal((await client()('POST', '/api/logs', { action: 'delete' })).status, 401);
+    assert.equal((await leader('POST', '/api/logs', { action: 'delete' })).status, 401);
+    assert.equal((await client()('GET', '/api/logs/archive')).status, 401);
+  });
   it('writes everything to the local data file', () => {
     const saved = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'db.json'), 'utf8'));
     assert.equal(saved.servers.length, 4);

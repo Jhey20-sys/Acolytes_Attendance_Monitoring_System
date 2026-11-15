@@ -202,6 +202,58 @@ describe('Team shuffle', () => {
   });
 });
 
+describe('Archive / remove attendance logs (panel logic)', () => {
+  function withLogs() {
+    const t = fresh();
+    const s = t.app.state;
+    s.servers.push({ id: 'a', name: 'Ana', parish: 'agusan', role: 'Elders', active: true });
+    s.attendance = {
+      '2026-10-04#agusan#m1': { a: { s: 'P' } },
+      '2026-11-01#agusan#m1': { a: { s: 'A' } },
+      '2026-11-01#tablon#m1': { a: { s: 'P', pending: true } },
+    };
+    s.submissions = { '2026-11-08#agusan#m2': { by: '2ndmass', at: '2026-11-08T02:00:00Z' } };
+    s.archiveIndex = { '2026-09-06#agusan#m1': 1 };
+    return t;
+  }
+  it('selects logs by parish and inclusive date range, including submitted reports without marks', () => {
+    const { app } = withLogs();
+    Object.assign(app.ui, { logParish: 'agusan', logFrom: '2026-11-01', logTo: '2026-11-08' });
+    assert.deepEqual(plain(app.logKeys('active')), ['2026-11-01#agusan#m1', '2026-11-08#agusan#m2']);
+    Object.assign(app.ui, { logParish: '', logFrom: '', logTo: '' });
+    assert.equal(app.logKeys('active').length, 4);
+    assert.deepEqual(plain(app.logKeys('archive')), ['2026-09-06#agusan#m1']);
+  });
+  it('describes the selection in plain words', () => {
+    const { app } = withLogs();
+    Object.assign(app.ui, { logParish: 'agusan', logFrom: '2026-11-01', logTo: '2026-11-01' });
+    assert.match(app.logFilterLabel(), /^Agusan on /);
+    Object.assign(app.ui, { logParish: '', logFrom: '', logTo: '' });
+    assert.equal(app.logFilterLabel(), 'all parishes, all dates');
+  });
+  it('shows counts and warns about records waiting for approval', () => {
+    const { app } = withLogs();
+    Object.assign(app.ui, { logParish: '', logFrom: '2026-11-01', logTo: '2026-11-30' });
+    const html = app.logsPanel();
+    assert.match(html, /3 Mass log\(s\), 2 mark\(s\)/);
+    assert.match(html, /1 waiting for approval/);
+    assert.match(html, /Archive 3 log\(s\)/);
+    assert.match(html, /1 archived Mass log\(s\) in total/);
+  });
+  it('downloads the archive as CSV, one row per mark', () => {
+    const { app } = withLogs();
+    const csv = app.archiveCsv({
+      attendance: { '2026-09-06#agusan#m1': { a: { s: 'E', reason: 'Sick', by: '1stmass' } } },
+      submissions: { '2026-09-06#agusan#m1': { by: '1stmass', at: '2026-09-06T01:00:00Z' } },
+      archivedAt: { '2026-09-06#agusan#m1': '2026-11-15T04:00:00Z' },
+    });
+    const lines = csv.replace(/^﻿/, '').split('\r\n');
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /^"Date","Parish \/ Chapel","Mass","Name"/);
+    assert.match(lines[1], /^"2026-09-06","Agusan","First Mass · Sunday 6:00 AM","Ana","Elders","Excused","","Sick","1stmass"/);
+  });
+});
+
 describe('Monthly statistics', () => {
   it('counts Present / Absent / Excused per month and ignores pending records', () => {
     const { app } = fresh();

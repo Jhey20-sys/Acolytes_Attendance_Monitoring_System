@@ -93,8 +93,15 @@ function freshDb() {
     schedules: {},   // { parishId: [ { id, from: 'YYYY-MM-DD', generatedAt, teams: [[serverIds] per Mass] } ] }
     attendance: {},  // { 'YYYY-MM-DD#parishId#massIndex': { serverId: record } }
     submissions: {}, // { massKey: { by, at, present, excused, absent, pending } }
+    archive: { attendance: {}, submissions: {}, archivedAt: {} }, // archived Mass logs (kept, but out of reports)
     notifications: [],
   };
+}
+
+/** Make sure an archive object has the expected shape. */
+function cleanArchive(a) {
+  const ok = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  return { attendance: ok(a?.attendance), submissions: ok(a?.submissions), archivedAt: ok(a?.archivedAt) };
 }
 
 function cleanServer(a, old) {
@@ -132,6 +139,7 @@ function hydrate(raw) {
   }
   db.settings = normalizeSettings(raw.servers ? raw.settings : null);
   if (!Array.isArray(db.leaders)) db.leaders = [];
+  db.archive = cleanArchive(raw.archive);
   const now = Date.now();
   for (const [t, s] of Object.entries(db.sessions)) if (s.exp < now) delete db.sessions[t];
   return db;
@@ -523,6 +531,9 @@ const snapshot = () => ({
   version: db.version, servers: db.servers, settings: db.settings, schedules: db.schedules,
   attendance: db.attendance, submissions: db.submissions, notifications: db.notifications,
   leaders: db.leaders.map(publicLeader), today: todayStr(),
+  // Only an index of the archive (Mass log key → number of marks); the records themselves come from GET /api/logs/archive.
+  archiveIndex: Object.fromEntries(Object.keys({ ...db.archive.attendance, ...db.archive.submissions })
+    .map(k => [k, Object.keys(db.archive.attendance[k] || {}).length])),
 });
 
 app.get('/api/state', requireAdmin, (req, res) => res.json(snapshot()));
@@ -554,9 +565,72 @@ app.put('/api/import', requireAdmin, (req, res) => {
   db.schedules = b.schedules && typeof b.schedules === 'object' ? b.schedules : {};
   db.attendance = b.attendance && typeof b.attendance === 'object' ? b.attendance : {};
   db.submissions = b.submissions && typeof b.submissions === 'object' ? b.submissions : {};
+  db.archive = cleanArchive(b.archive);
   db.version++;
   persist();
   res.json(snapshot());
+});
+
+/* ----- Attendance logs: archive, delete, restore ----- */
+/**
+ * Which Mass logs (attendance + submission for one date/parish/Mass) match a filter.
+ * parish: '' = all parishes; from / to: 'YYYY-MM-DD', inclusive, either may be empty.
+ */
+function matchingLogKeys(store, { parish, from, to }) {
+  const keys = new Set([...Object.keys(store.attendance), ...Object.keys(store.submissions)]);
+  return [...keys].filter(k => {
+    const m = splitKey(k);
+    return (!parish || m.parish === parish) && (!from || m.date >= from) && (!to || m.date <= to);
+  });
+}
+
+app.get('/api/logs/archive', requireAdmin, (req, res) => res.json(db.archive));
+
+/**
+ * body: { action: 'archive' | 'delete' | 'restore' | 'purge', parish, from, to }
+ * archive: active → archive. delete: remove active logs. restore: archive → active. purge: remove archived logs.
+ */
+app.post('/api/logs', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const action = String(b.action || '');
+  if (!['archive', 'delete', 'restore', 'purge'].includes(action)) return res.status(400).json({ error: 'Unknown action.' });
+  const filter = {
+    parish: b.parish ? String(b.parish) : '',
+    from: isDate(b.from) ? b.from : '',
+    to: isDate(b.to) ? b.to : '',
+  };
+  if (filter.from && filter.to && filter.from > filter.to) return res.status(400).json({ error: 'The "from" date is after the "to" date.' });
+  const active = { attendance: db.attendance, submissions: db.submissions };
+  const arch = db.archive;
+  const source = action === 'archive' || action === 'delete' ? active : arch;
+  const keys = matchingLogKeys(source, filter);
+  const touched = new Set();
+  const now = new Date().toISOString();
+
+  for (const k of keys) {
+    Object.keys(source.attendance[k] || {}).forEach(id => touched.add(id));
+    if (action === 'archive') {
+      if (db.attendance[k]) arch.attendance[k] = { ...(arch.attendance[k] || {}), ...db.attendance[k] };
+      if (db.submissions[k]) arch.submissions[k] = db.submissions[k];
+      arch.archivedAt[k] = now;
+    } else if (action === 'restore') {
+      // Marks recorded since archiving win over the archived ones.
+      if (arch.attendance[k]) db.attendance[k] = { ...arch.attendance[k], ...(db.attendance[k] || {}) };
+      if (arch.submissions[k] && !db.submissions[k]) db.submissions[k] = arch.submissions[k];
+    }
+    delete source.attendance[k];
+    delete source.submissions[k];
+    if (source === arch) delete arch.archivedAt[k];
+  }
+  touched.forEach(updateStatus);
+  if (keys.length) {
+    const verb = { archive: 'archived', delete: 'deleted', restore: 'restored', purge: 'permanently deleted archived' }[action];
+    const where = filter.parish ? (parishById(filter.parish)?.name || filter.parish) : 'all parishes';
+    const span = filter.from || filter.to ? ` (${filter.from || 'start'} to ${filter.to || 'today'})` : '';
+    notify('logs', `${req.admin} ${verb} ${keys.length} Mass log(s) for ${where}${span}.`);
+  }
+  persist();
+  res.json({ ...snapshot(), changed: keys.length });
 });
 
 app.post('/api/servers/:id/new-code', requireAdmin, (req, res) => {

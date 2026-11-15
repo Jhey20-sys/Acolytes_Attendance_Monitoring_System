@@ -13,7 +13,7 @@ const EXPORTS = `
 ;globalThis.__app = {
   pad, ymd, addDays, fmtTime, massName, esc, keyOf, splitKey, toCsv, csvCell,
   parseCsv, parseMassCell, importCsv, shuffleParish, secondMeeting, monthStats,
-  scheduleOn, scheduleEntries, DAY_NAMES, ui,
+  scheduleOn, scheduleEntries, DAY_NAMES, ui, logKeys, logFilterLabel, logsPanel, archiveCsv,
   get state() { return state; }, set state(v) { state = v; },
 };`;
 
