@@ -5,7 +5,8 @@
   "description": "Attendance tracking and Mass schedule rotation for an Acolytes Ministry, with admin login and QR check-in.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/unit.test.js test/smoke.test.js"
   },
   "engines": {
     "node": ">=18"
