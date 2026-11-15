@@ -6,8 +6,8 @@
   <title>Altar Server Check-in</title>
   <meta name="theme-color" content="#7a1f2b">
   <link rel="manifest" href="leader-manifest.json">
-  <link rel="icon" href="logo.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="logo.svg">
+  <link rel="icon" href="logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
@@ -98,7 +98,7 @@ function showLogin(msg) {
   closeSheet();
   $('#app').innerHTML = `
     <form class="card stack" id="loginForm" style="margin-top:24px">
-      <img class="login-logo" src="logo.svg" alt="Altar Servers logo">
+      <img class="login-logo" src="logo.png" alt="Altar Servers logo">
       <div style="text-align:center"><h2>Altar Server Check-in</h2><p class="muted small">Login as User (Mass leader)</p></div>
       ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
       <div><label for="u">User name</label><input id="u" autocomplete="username" autocapitalize="none" required style="width:100%; padding:12px"></div>
@@ -138,7 +138,7 @@ function render() {
     </div>`;
 
   $('#app').innerHTML = `
-    <div class="lhead"><img src="logo.svg" alt=""><div style="flex:1"><h1>${esc(v.ministry)}</h1><span class="muted small">👤 ${esc(v.leader)}</span></div>
+    <div class="lhead"><img src="logo.png" alt=""><div style="flex:1"><h1>${esc(v.ministry)}</h1><span class="muted small">👤 ${esc(v.leader)}</span></div>
       <button class="sm" id="logout">Log out</button></div>
     <div class="mass-card">
       <span class="k">${esc(v.mass.parishName)}</span>

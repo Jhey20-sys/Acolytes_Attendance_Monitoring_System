@@ -203,7 +203,7 @@ function showLogin(msg, needsSetup = false) {
   document.getElementById('view').innerHTML = `
     <form class="card stack login-card" data-form="${needsSetup ? 'setup' : 'login'}">
       <div style="text-align:center">
-        <img src="logo.svg" alt="Altar Servers" width="72" height="72">
+        <img src="logo.png" alt="Altar Servers" width="72" height="72">
         <h2 style="margin-top:8px">${needsSetup ? 'Create the first admin account' : 'Login as Administrator'}</h2>
         <p class="muted small">${needsSetup ? 'You can add more admins/secretaries later in Settings.' : 'Mass leaders use the mobile app instead: <a href="/app">open the leader app</a>.'}</p>
       </div>
@@ -493,7 +493,7 @@ async function scheduleImage(pid, entry) {
   g.fillStyle = '#faf7f2'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#7a1f2b'; g.fillRect(0, 0, W, 240);
   const logo = new Image();
-  await new Promise(r => { logo.onload = r; logo.onerror = r; logo.src = 'logo.svg'; });
+  await new Promise(r => { logo.onload = r; logo.onerror = r; logo.src = 'logo.png'; });
   try { g.drawImage(logo, padX, 52, 136, 136); } catch (e) { /* no logo */ }
   g.fillStyle = '#f3d27a'; g.font = font(700, 30); g.fillText(state.settings.ministry.toUpperCase(), padX + 164, 92);
   g.fillStyle = '#fff'; g.font = font(800, 56); g.fillText(`${p.name} Schedule`, padX + 164, 154);
@@ -764,7 +764,7 @@ async function printQrCards(ids, title) {
   w.document.write('<p style="font-family:sans-serif">Preparing QR cards…</p>');
   try {
     const { qr } = await api('POST', '/api/qr/servers', { ids });
-    const logo = `${location.origin}/logo.svg`;
+    const logo = `${location.origin}/logo.png`;
     const cards = ids.map(id => {
       const s = byId(id);
       if (!s || !qr[id]) return '';
