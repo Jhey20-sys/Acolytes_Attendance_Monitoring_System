@@ -1,0 +1,11 @@
+{
+  "name": "Altar Servers Admin",
+  "short_name": "Servers Admin",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#7a1f2b",
+  "icons": [
+    { "src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

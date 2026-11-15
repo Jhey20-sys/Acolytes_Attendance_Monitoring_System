@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Altar Server Check-in</title>
+  <meta name="theme-color" content="#7a1f2b">
+  <link rel="manifest" href="leader-manifest.json">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="theme.css">
+  <script>
+    /* tweakcn/shadcn dark mode: adds .dark to <html>. Saved choice wins, else follows the device. */
+    (function () {
+      var mq = matchMedia('(prefers-color-scheme: dark)');
+      function saved() { try { return localStorage.getItem('theme'); } catch (e) { return null; } }
+      window.applyTheme = function () {
+        var t = saved(); document.documentElement.classList.toggle('dark', t ? t === 'dark' : mq.matches);
+      };
+      window.toggleTheme = function () {
+        var next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        applyTheme();
+      };
+      mq.addEventListener && mq.addEventListener('change', applyTheme);
+      applyTheme();
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { min-height: 100vh; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 16px 16px 120px; }
+    .lhead { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .lhead img { width: 40px; height: 40px; }
+    .lhead h1 { font-size: 1rem; margin: 0; }
+    .login-logo { display: block; width: 110px; height: 110px; margin: 10px auto 6px; }
+    .mass-card { background: var(--primary); color: var(--primary-ink); border-radius: 14px; padding: 14px; }
+    .mass-card .k { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; opacity: .85; }
+    .mass-card b { display: block; font-size: 1.25rem; }
+    .dates { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; scrollbar-width: none; }
+    .dates button { background: rgba(255,255,255,.14); color: inherit; border: 1px solid rgba(255,255,255,.3); white-space: nowrap; padding: 6px 10px; font-size: .85rem; }
+    .dates button.on { background: var(--primary-ink); color: var(--primary); font-weight: 700; }
+    .big { width: 100%; padding: 16px; font-size: 1.1rem; border-radius: 12px; }
+    .scanbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); }
+    .scanbar .inner { max-width: 480px; margin: 0 auto; display: flex; gap: 8px; }
+    .row-l { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .row-l:last-child { border-bottom: 0; }
+    .row-l .who b { display: block; }
+    .row-l .acts { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+    .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+    .sheet { background: var(--surface); width: 100%; max-width: 480px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); max-height: 92vh; overflow: auto; }
+    .result-icon { font-size: 3.2rem; text-align: center; line-height: 1.1; }
+    .who-box { background: var(--surface-2); border-radius: 12px; padding: 12px; text-align: center; margin: 10px 0; }
+    .who-box b { font-size: 1.2rem; display: block; }
+    .cam { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 1; }
+    .cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cam .frame { position: absolute; inset: 14%; border: 3px solid rgba(255,255,255,.9); border-radius: 16px; box-shadow: 0 0 0 999px rgba(0,0,0,.35); }
+    .ok { color: var(--ok); } .warnc { color: var(--warn); } .err { color: var(--bad); }
+    .section-t { display: flex; justify-content: space-between; align-items: baseline; margin: 18px 0 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app"><p class="muted" style="text-align:center; padding:40px">Loading…</p></div>
+  <div id="sheet"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const niceDate = s => parse(s).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const longDate = s => parse(s).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+let view = null;      // what the server says about the selected Mass/date
+let date = null;      // selected date
+let busy = false;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+async function call(method, url, body) {
+  const res = await fetch(url, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && url !== '/api/leader/login') { showLogin(); throw new Error('Please log in.'); }
+  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status})`);
+  return data;
+}
+
+/* ---------- Login ---------- */
+function showLogin(msg) {
+  closeSheet();
+  $('#app').innerHTML = `
+    <form class="card stack" id="loginForm" style="margin-top:24px">
+      <img class="login-logo" src="logo.svg" alt="Altar Servers logo">
+      <div style="text-align:center"><h2>Altar Server Check-in</h2><p class="muted small">Login as User (Mass leader)</p></div>
+      ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
+      <div><label for="u">User name</label><input id="u" autocomplete="username" autocapitalize="none" required style="width:100%; padding:12px"></div>
+      <div><label for="p">Password</label><input id="p" type="password" autocomplete="current-password" required style="width:100%; padding:12px"></div>
+      <button class="primary big" type="submit">Log in</button>
+      <p class="muted small" style="text-align:center; margin:0">Admins/secretaries: <a href="/">open the admin website</a></p>
+    </form>`;
+  $('#loginForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await call('POST', '/api/leader/login', { username: $('#u').value.trim(), password: $('#p').value });
+      start();
+    } catch (err) { showLogin(err.message); }
+  };
+}
+
+/* ---------- Main screen ---------- */
+const PILL = r => {
+  if (!r) return '<span class="pill">Waiting</span>';
+  if (r.pending) return '<span class="pill L">Pending approval</span>';
+  return { P: '<span class="pill P">Present</span>', A: '<span class="pill A">Absent</span>', E: '<span class="pill E">Excused</span>' }[r.s];
+};
+
+function render() {
+  const v = view;
+  const locked = !!v.submitted;
+  const team = v.rows.filter(r => r.onTeam);
+  const others = v.rows.filter(r => !r.onTeam);
+  const present = v.rows.filter(r => r.record && r.record.s === 'P' && !r.record.pending).length;
+  const waiting = team.filter(r => !r.record).length;
+  const rowHtml = r => `<div class="row-l">
+      <div class="who"><b>${esc(r.name)}</b><span class="muted small">${esc(r.role)}${r.onTeam ? '' : ` · ${esc(r.parish)}`}${r.record?.at && r.record.s === 'P' ? ` · ${timeOf(r.record.at)}` : ''}</span>
+        ${r.record?.reason ? `<div class="muted small">“${esc(r.record.reason)}”</div>` : ''}</div>
+      <div class="acts">${PILL(r.record)}
+        ${!locked && r.record ? `<button class="sm" data-undo="${r.id}" aria-label="Undo">↶</button>` : ''}
+        ${!locked && !r.record && r.onTeam ? `<button class="sm" data-excuse="${r.id}">Excuse</button>` : ''}</div>
+    </div>`;
+
+  $('#app').innerHTML = `
+    <div class="lhead"><img src="logo.svg" alt=""><div style="flex:1"><h1>${esc(v.ministry)}</h1><span class="muted small">👤 ${esc(v.leader)}</span></div>
+      <button class="sm" id="logout">Log out</button></div>
+    <div class="mass-card">
+      <span class="k">${esc(v.mass.parishName)}</span>
+      <b>${esc(v.mass.name)} · ${esc(v.mass.timeLabel)}</b>
+      <span>${longDate(v.date)}${v.date === v.today ? ' (today)' : ''}</span>
+      <div class="dates">${v.dates.map(d => `<button data-date="${d}" class="${d === v.date ? 'on' : ''}">${niceDate(d)}</button>`).join('')}</div>
+    </div>
+    ${locked ? `<div class="card" style="margin-top:12px; border-color:var(--ok)"><b class="ok">✔ Report submitted</b>
+      <div class="muted small">${new Date(v.submitted.at).toLocaleString()} — ${v.submitted.present} present, ${v.submitted.excused} excused, ${v.submitted.absent} absent${v.submitted.pending ? `, ${v.submitted.pending} waiting for approval` : ''}. Ask the admin for changes.</div></div>` : ''}
+    ${!v.hasSchedule ? '<div class="msg-warn" style="margin-top:12px">No team has been assigned for this date yet. Everyone you scan will need a reason and admin approval.</div>' : ''}
+    <div class="section-t"><h3>Team (${team.length})</h3><span class="muted small">${present} present · ${waiting} waiting</span></div>
+    <div class="card">${team.length ? team.map(rowHtml).join('') : '<p class="muted small">No servers assigned.</p>'}</div>
+    ${others.length ? `<div class="section-t"><h3>Served from other teams</h3><span class="muted small">needs admin approval</span></div><div class="card">${others.map(rowHtml).join('')}</div>` : ''}
+    ${!locked ? `<div style="margin-top:16px" class="stack">
+      ${v.allowManualPick ? '<button class="big" id="pick">☰ Choose from list</button>' : ''}
+      <button class="big" id="submit" ${v.date > v.today ? 'disabled' : ''}>📤 Submit report to admin / secretary</button>
+      <p class="muted small" style="text-align:center; margin:0">${v.date > v.today ? 'You can record excuses ahead of time. Submit on the day of the Mass.' : 'Submit once, after the Mass. Team members not scanned or excused will be marked Absent.'}</p>
+    </div>` : ''}
+    ${!locked ? `<div class="scanbar"><div class="inner"><button class="primary big" id="scan">📷 Scan QR card</button></div></div>` : ''}`;
+}
+
+async function load(d) {
+  view = await call('GET', `/api/leader/me${d ? `?date=${d}` : ''}`);
+  date = view.date;
+  render();
+}
+
+async function start() {
+  try {
+    await load(date);
+  } catch (e) { if (e.message !== 'Please log in.') $('#app').innerHTML = `<div class="card empty">${esc(e.message)}<br><br><button onclick="location.reload()">Try again</button></div>`; return; }
+  // Opened by scanning a card with the phone's own camera app (…/s/CODE → /app?code=CODE)
+  const pending = new URLSearchParams(location.search).get('code') || sessionStorage.getItem('pendingCode');
+  if (pending) {
+    sessionStorage.removeItem('pendingCode');
+    history.replaceState(null, '', '/app');
+    if (!view.submitted) recordScan(pending);
+  }
+}
+
+/* ---------- Scanning ---------- */
+let stream = null, scanLoop = null, detector = null, lastCode = '', lastAt = 0;
+
+function closeSheet() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  cancelAnimationFrame(scanLoop); scanLoop = null;
+  $('#sheet').innerHTML = '';
+}
+function sheet(html) {
+  $('#sheet').innerHTML = `<div class="sheet-bg" id="bg"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  $('#bg').addEventListener('click', e => { if (e.target.id === 'bg') closeSheet(); });
+}
+
+function loadJsQr() {
+  return new Promise((res, rej) => {
+    if (window.jsQR) return res();
+    const s = document.createElement('script'); s.src = '/vendor/jsQR.js'; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function openScanner() {
+  const manual = `<form id="manualForm" class="row" style="margin-top:12px">
+      <input id="manualCode" placeholder="Or type the code on the card" autocapitalize="characters" style="flex:1; padding:10px" aria-label="Card code">
+      <button type="submit">OK</button></form>`;
+  if (!navigator.mediaDevices || !window.isSecureContext) {
+    sheet(`<h3>Scan a QR card</h3>
+      <p class="small">This connection can't use the camera inside the app. Instead, <b>open your phone's Camera app and point it at the server's QR card</b>, then tap the link that appears — it opens here and records the server.</p>
+      ${manual}<button class="big" style="margin-top:12px" id="closeS">Close</button>`);
+    $('#closeS').onclick = closeSheet;
+    $('#manualForm').onsubmit = e => { e.preventDefault(); const c = $('#manualCode').value.trim(); if (c) recordScan(c); };
+    return;
+  }
+  sheet(`<h3 style="margin-bottom:10px">Point the camera at the QR card</h3>
+    <div class="cam"><video id="vid" playsinline muted></video><div class="frame"></div></div>
+    <p class="muted small" id="camMsg" style="text-align:center">Starting camera…</p>
+    ${manual}<button class="big" style="margin-top:12px" id="closeS">Close</button>`);
+  $('#closeS').onclick = closeSheet;
+  $('#manualForm').onsubmit = e => { e.preventDefault(); const c = $('#manualCode').value.trim(); if (c) recordScan(c); };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    const vid = $('#vid');
+    if (!vid) return closeSheet();
+    vid.srcObject = stream;
+    await vid.play();
+    $('#camMsg').textContent = 'Hold steady…';
+    if ('BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { detector = null; } }
+    if (!detector) await loadJsQr();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const tick = async () => {
+      if (!stream) return;
+      const v = $('#vid');
+      if (v && v.readyState >= 2) {
+        let text = null;
+        if (detector) {
+          const codes = await detector.detect(v).catch(() => []);
+          text = codes[0]?.rawValue || null;
+        } else {
+          const w = 480, h = Math.round(480 * v.videoHeight / v.videoWidth) || 480;
+          canvas.width = w; canvas.height = h;
+          ctx.drawImage(v, 0, 0, w, h);
+          const img = ctx.getImageData(0, 0, w, h);
+          text = window.jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' })?.data || null;
+        }
+        if (text && !(text === lastCode && Date.now() - lastAt < 4000)) {
+          lastCode = text; lastAt = Date.now();
+          if (navigator.vibrate) navigator.vibrate(80);
+          return recordScan(text);
+        }
+      }
+      scanLoop = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (e) {
+    const m = $('#camMsg');
+    if (m) m.innerHTML = `<span class="err">Camera not available (${esc(e.name || e.message)}). Allow camera access, or use your phone's Camera app to scan the card.</span>`;
+  }
+}
+
+async function recordScan(code, reason) {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await call('POST', '/api/leader/scan', { date, code, reason });
+    showScanResult(r, code);
+  } catch (e) {
+    closeSheet();
+    sheet(`<div class="result-icon err">⚠</div><h3 style="text-align:center">Can't record</h3><p style="text-align:center" class="muted">${esc(e.message)}</p>
+      <button class="primary big" id="again">Scan again</button>`);
+    $('#again').onclick = () => { closeSheet(); openScanner(); };
+  } finally { busy = false; }
+}
+
+function whoBox(s) {
+  return `<div class="who-box"><b>${esc(s.name)}</b><span>${esc(s.parish)} · ${esc(s.role)}</span>${s.active === false ? '<div class="small warnc">Currently inactive — will be active again once recorded present</div>' : ''}</div>`;
+}
+
+function showScanResult(r, code) {
+  closeSheet();
+  if (r.view) { view = r.view; render(); }
+  if (r.needReason) {
+    sheet(`<div class="result-icon warnc">✋</div>
+      ${whoBox(r.server)}
+      <p class="small"><b>${esc(r.server.name)}</b> is not on this Mass's team. Write why they are serving here. The record stays <b>pending</b> until the admin/secretary approves it.</p>
+      <form id="reasonForm" class="stack">
+        <textarea id="reason" required placeholder="Valid reason (e.g. replacing Maria who is sick)"></textarea>
+        <button class="primary big" type="submit">Save as pending</button>
+        <button class="big" type="button" id="cancelR">Cancel</button>
+      </form>`);
+    $('#reason').focus();
+    $('#cancelR').onclick = closeSheet;
+    $('#reasonForm').onsubmit = e => { e.preventDefault(); const t = $('#reason').value.trim(); if (t) recordScan(code, t); };
+    return;
+  }
+  const rec = r.record;
+  const pending = rec?.pending;
+  sheet(`<div class="result-icon ${pending ? 'warnc' : 'ok'}">${pending ? '⏳' : '✔'}</div>
+    <h3 style="text-align:center">${r.already ? 'Already recorded' : pending ? 'Saved — pending approval' : 'Present!'}</h3>
+    ${whoBox(r.server)}
+    <button class="primary big" id="next">📷 Scan next</button>
+    <button class="big" style="margin-top:8px" id="done">Done</button>`);
+  $('#next').onclick = () => { closeSheet(); openScanner(); };
+  $('#done').onclick = closeSheet;
+}
+
+function openExcuse(id) {
+  const r = view.rows.find(x => x.id === id);
+  const before = view.date > view.today;
+  sheet(`<h3>Excuse — ${esc(r.name)}</h3>
+    <form id="exForm" class="stack" style="margin-top:10px">
+      <div class="row">
+        <label style="color:var(--text)"><input type="radio" name="t" value="before" ${before ? 'checked' : ''}> Before the day</label>
+        <label style="color:var(--text)"><input type="radio" name="t" value="onday" ${before ? 'disabled' : 'checked'}> On the day</label>
+      </div>
+      <textarea id="exReason" required placeholder="Reason for the excuse"></textarea>
+      <button class="primary big" type="submit">Save excuse</button>
+      <button class="big" type="button" id="cancelE">Cancel</button>
+    </form>`);
+  $('#cancelE').onclick = closeSheet;
+  $('#exForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const res = await call('POST', '/api/leader/excuse', { date, id, reason: $('#exReason').value.trim(), type: new FormData(e.target).get('t') });
+      view = res.view; render(); closeSheet(); toast('Excuse saved.');
+    } catch (err) { toast(err.message); }
+  };
+}
+
+function openPick() {
+  const team = view.rows.filter(r => r.onTeam && !r.record);
+  sheet(`<h3>Choose a server</h3>
+    <form id="pickForm" class="stack" style="margin-top:10px">
+      <select id="pickSel" required style="width:100%; padding:12px">
+        <option value="">— Choose —</option>
+        ${team.length ? `<optgroup label="This team">${team.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</optgroup>` : ''}
+        ${view.pickList.length ? `<optgroup label="Other servers">${view.pickList.map(r => `<option value="${r.id}">${esc(r.name)} (${esc(r.parish)})</option>`).join('')}</optgroup>` : ''}
+      </select>
+      <button class="primary big" type="submit">Mark present</button>
+      <button class="big" type="button" id="cancelP">Cancel</button>
+    </form>`);
+  $('#cancelP').onclick = closeSheet;
+  $('#pickForm').onsubmit = async e => {
+    e.preventDefault();
+    const id = $('#pickSel').value;
+    if (!id) return;
+    try { showScanResult(await call('POST', '/api/leader/scan', { date, id }), null); }
+    catch (err) { toast(err.message); }
+  };
+}
+
+async function submitReport() {
+  const missing = view.rows.filter(r => r.onTeam && !r.record);
+  const msg = `Submit the report for ${view.mass.name}, ${niceDate(view.date)}?\n\n`
+    + (missing.length ? `These will be marked ABSENT:\n• ${missing.map(r => r.name).join('\n• ')}\n\n` : '')
+    + 'After submitting, only the admin can make changes.';
+  if (!confirm(msg)) return;
+  try { const r = await call('POST', '/api/leader/submit', { date }); view = r.view; render(); toast('Report submitted ✔ The admin has been notified.'); }
+  catch (e) { toast(e.message); }
+}
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button');
+  if (!t || !view) return;
+  if (t.id === 'scan') return openScanner();
+  if (t.id === 'pick') return openPick();
+  if (t.id === 'submit') return submitReport();
+  if (t.id === 'logout') { await call('POST', '/api/leader/logout').catch(() => {}); view = null; return showLogin(); }
+  if (t.dataset.date) { try { await load(t.dataset.date); } catch (err) { toast(err.message); } return; }
+  if (t.dataset.excuse) return openExcuse(t.dataset.excuse);
+  if (t.dataset.undo) {
+    const r = view.rows.find(x => x.id === t.dataset.undo);
+    if (!confirm(`Remove the record for ${r.name}?`)) return;
+    try { view = (await call('POST', '/api/leader/undo', { date, id: r.id })).view; render(); } catch (err) { toast(err.message); }
+  }
+});
+
+// Keep a scanned card's code if the leader needs to log in first.
+const initialCode = new URLSearchParams(location.search).get('code');
+if (initialCode) sessionStorage.setItem('pendingCode', initialCode);
+start();
+</script>
+</body>
+</html>

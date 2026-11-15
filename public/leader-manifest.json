@@ -1,0 +1,12 @@
+{
+  "name": "Altar Server Check-in",
+  "short_name": "Altar Check-in",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#7a1f2b",
+  "icons": [
+    { "src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

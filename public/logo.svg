@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Altar Servers">
+  <!-- Replace this file with your ministry's own logo (keep the name logo.svg, or update the <img> tags). -->
+  <circle cx="60" cy="60" r="58" fill="#7a1f2b"/>
+  <circle cx="60" cy="60" r="51" fill="none" stroke="#f3d27a" stroke-width="3"/>
+  <!-- cross -->
+  <rect x="55" y="20" width="10" height="58" rx="2" fill="#f3d27a"/>
+  <rect x="40" y="34" width="40" height="10" rx="2" fill="#f3d27a"/>
+  <!-- candles -->
+  <rect x="24" y="56" width="9" height="30" rx="2" fill="#fff"/>
+  <path d="M28.5 44c4 5 4 8 0 11-4-3-4-6 0-11z" fill="#ffb347"/>
+  <rect x="87" y="56" width="9" height="30" rx="2" fill="#fff"/>
+  <path d="M91.5 44c4 5 4 8 0 11-4-3-4-6 0-11z" fill="#ffb347"/>
+  <!-- altar -->
+  <rect x="18" y="84" width="84" height="8" rx="2" fill="#f3d27a"/>
+  <rect x="26" y="92" width="68" height="10" rx="2" fill="#e8c062"/>
+</svg>
