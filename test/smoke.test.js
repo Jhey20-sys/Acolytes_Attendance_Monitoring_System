@@ -255,6 +255,12 @@ describe('Smoke: admin and leader flow', () => {
     assert.equal(r.json.attendance['2026-12-06#agusan#m1'], undefined);
     assert.ok(r.json.notifications.some(n => n.kind === 'logs'));
   });
+  it('clears only the notifications that were already read', async () => {
+    await admin('POST', '/api/notifications/read');
+    let r = await admin('POST', '/api/notifications/clear');
+    assert.equal(r.json.notifications.length, 0);
+    assert.equal((await client()('POST', '/api/notifications/clear')).status, 401);
+  });
   it('requires an admin login to archive or remove logs', async () => {
     assert.equal((await client()('POST', '/api/logs', { action: 'delete' })).status, 401);
     assert.equal((await leader('POST', '/api/logs', { action: 'delete' })).status, 401);

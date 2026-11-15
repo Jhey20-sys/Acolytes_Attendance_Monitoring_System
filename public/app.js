@@ -311,7 +311,10 @@ function viewDashboard() {
     </div>
     <div class="card" style="margin-top:14px">
       <div class="row spread"><h3>Notifications ${unread ? `<span class="badge">${unread} new</span>` : ''}</h3>
-        ${unread ? '<button class="sm" data-action="read-all">Mark all as read</button>' : ''}</div>
+        <div class="row">
+          ${unread ? '<button class="sm" data-action="read-all">Mark all as read</button>' : ''}
+          ${state.notifications.length > unread ? '<button class="sm" data-action="clear-read">Clear read</button>' : ''}
+        </div></div>
       ${state.notifications.length ? `<ul class="list notif">${state.notifications.slice(0, 40).map(n => `<li class="${n.read ? '' : 'unread'}"><span><span class="dot ${esc(n.kind)}"></span>${esc(n.text)}</span><span class="muted small">${fmtWhen(n.at)}</span></li>`).join('')}</ul>`
         : '<p class="muted small">Leader submissions, approvals and status changes will show up here.</p>'}
     </div>`;
@@ -1091,6 +1094,9 @@ document.addEventListener('click', async e => {
     case 'goto-schedule': ui.tab = 'schedule'; ui.schParish = el.dataset.p; ui.schEntry = null; break;
     case 'dash-month': ui.dashMonth = shiftMonth(ui.dashMonth, Number(el.dataset.d)); break;
     case 'read-all': return serverCall('POST', '/api/notifications/read');
+    case 'clear-read':
+      if (!confirm('Clear all notifications that have been read? This cannot be undone.')) return;
+      return serverCall('POST', '/api/notifications/clear');
 
     /* roster */
     case 'print-qr': printQrCards(rosterFiltered().map(s => s.id), 'Altar Server QR cards'); return;

@@ -692,6 +692,13 @@ app.post('/api/notifications/read', requireAdmin, (req, res) => {
   res.json(snapshot());
 });
 
+// Remove every notification that has already been read (unread ones are kept).
+app.post('/api/notifications/clear', requireAdmin, (req, res) => {
+  db.notifications = db.notifications.filter(n => !n.read);
+  persist();
+  res.json(snapshot());
+});
+
 /* ----- QR codes ----- */
 const qrSvg = text => QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
 const serverQrUrl = (req, s) => `${baseUrl(req)}/s/${s.code}`;
