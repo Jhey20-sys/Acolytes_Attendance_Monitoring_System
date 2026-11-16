@@ -33,9 +33,9 @@
   --input: oklch(0.905 0.012 260);
   --ring: oklch(0.45 0.15 262);
 
-  --font-sans: Nunito, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-serif: Fredoka, Nunito, ui-rounded, system-ui, sans-serif;  /* titles: rounded and friendly */
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: Geist, ui-sans-serif, system-ui, sans-serif;  /* shadcn: one sans font for titles too */
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius: 0.75rem;
   --letter-spacing: 0em;
   --spacing: 0.25rem;
