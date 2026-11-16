@@ -103,7 +103,7 @@ function greeting() {
 function showLogin(msg) {
   closeSheet();
   $('#app').innerHTML = `
-    <form class="card stack" id="loginForm" style="margin-top:24px">
+    <form class="card stack login-card${msg ? ' shake' : ''}" id="loginForm" style="margin-top:24px">
       <img class="login-logo" src="logo.png" alt="Altar Servers logo">
       <div style="text-align:center"><p class="greet-kicker">Peace be with you</p><h2 style="margin-top:4px">${greeting()}</h2><p class="muted small">Mass leader login</p></div>
       ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
@@ -114,6 +114,8 @@ function showLogin(msg) {
     </form>`;
   $('#loginForm').onsubmit = async e => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     try {
       await call('POST', '/api/leader/login', { username: $('#u').value.trim(), password: $('#p').value });
       start();

@@ -41,6 +41,7 @@ async function api(method, url, body) {
 /* ---------------- State ---------------- */
 let state = null; // { version, servers, settings, schedules, attendance, submissions, notifications, leaders }
 let me = null;
+let shownTab = null; // tab currently on screen; entry animations run only when it changes
 
 const ui = {
   tab: 'dashboard',
@@ -203,12 +204,12 @@ function greeting() {
 }
 
 function showLogin(msg, needsSetup = false) {
-  me = null; state = null;
+  me = null; state = null; shownTab = null;
   stopTimers();
   document.body.classList.add('logged-out');
   document.getElementById('userBox').innerHTML = '';
   document.getElementById('view').innerHTML = `
-    <form class="card stack login-card" data-form="${needsSetup ? 'setup' : 'login'}">
+    <form class="card stack login-card${msg ? ' shake' : ''}" data-form="${needsSetup ? 'setup' : 'login'}">
       <div style="text-align:center">
         <img src="logo.png" alt="Altar Servers" width="72" height="72">
         <p class="greet-kicker">Peace be with you</p>
@@ -252,8 +253,30 @@ function render() {
   const badge = document.getElementById('pendingBadge');
   badge.hidden = !pend; badge.textContent = pend;
   const views = { dashboard: viewDashboard, roster: viewRoster, schedule: viewSchedule, attendance: viewAttendance, approvals: viewApprovals, reports: viewReports, settings: viewSettings };
-  document.getElementById('view').innerHTML = views[ui.tab]();
+  const view = document.getElementById('view');
+  const entering = ui.tab !== shownTab;
+  shownTab = ui.tab;
+  view.innerHTML = views[ui.tab]();
+  view.classList.remove('enter');
+  if (entering) { void view.offsetWidth; view.classList.add('enter'); if (ui.tab === 'dashboard') countUp(view); }
   if (ui.tab === 'settings') loadSettingsExtras();
+}
+
+/* Stat numbers count up from 0 when the dashboard opens. */
+function countUp(root) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  root.querySelectorAll('.stat b').forEach(el => {
+    const end = Number(el.textContent);
+    if (!end) return;
+    const t0 = performance.now(), dur = 700;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      el.textContent = Math.round(end * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    el.textContent = '0';
+    requestAnimationFrame(step);
+  });
 }
 
 /* ----- Dashboard ----- */
@@ -1416,6 +1439,8 @@ document.addEventListener('submit', async e => {
     const username = fd.get('username').trim();
     const password = fd.get('password');
     if (kind === 'setup' && password !== fd.get('password2')) return showLogin('Passwords do not match.', true);
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     try { await api('POST', kind === 'setup' ? '/api/auth/setup' : '/api/auth/login', { username, password }); boot(); }
     catch (err) { showLogin(err.message, kind === 'setup'); }
     return;
