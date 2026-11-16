@@ -78,6 +78,8 @@ The repository includes `render.yaml`, so Render fills in the settings for you:
 
 Every push to the `main` branch redeploys automatically. The free plan sleeps after about 15 minutes without visitors, so the first visit afterwards takes 30–60 seconds; data is safe because it lives in Supabase.
 
+To keep it awake, the workflow `.github/workflows/keep-awake.yml` visits the site every 10 minutes. Turn it on once: in GitHub go to **Settings → Secrets and variables → Actions → Variables → New repository variable**, name it `RENDER_URL`, and set it to your Render link (for example `https://your-site.onrender.com`). Check it under the **Actions** tab → **Keep Render awake** → **Run workflow**. One always-on service fits within Render's 750 free hours a month.
+
 Other options: any Node.js host, or a parish computer with Cloudflare Tunnel (`cloudflared tunnel --url http://localhost:3000`). Without Supabase, the host needs a persistent disk; set `DATA_DIR` to it.
 
 ## Testing
