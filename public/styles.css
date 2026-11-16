@@ -254,8 +254,8 @@ body {
 }
 h1, h2, h3, h4 { letter-spacing: -0.02em; font-weight: 600; }
 h2 { font-size: 1.5rem; line-height: 1.2; }
-/* Page and app titles use the display serif (Cinzel); card titles and body text stay in Inter. */
-h1, h2 { font-family: var(--font-serif); font-weight: 700; letter-spacing: 0.03em; }
+/* Page and app titles use the rounded display font (Fredoka); card titles and body text use Nunito. */
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; letter-spacing: 0; }
 
 /* ----- Glass primitive ----- */
 .topbar, .section-head, .lhead, .scanbar {
@@ -398,4 +398,5 @@ tbody tr:hover td { background: color-mix(in oklab, var(--muted) 60%, transparen
 /* Friendly greetings */
 .greet-kicker { margin: 6px 0 0; font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
 .greet-card { display: flex; flex-direction: column; gap: 2px; margin: 0 2px 12px; }
-.greet-card b { font-family: 'Cinzel', serif; font-size: 1.15rem; }
+.greet-card b { font-family: var(--font-serif); font-weight: 600; font-size: 1.2rem; }
+.verse { margin: 4px 0 0; font-size: .85rem; font-style: italic; color: var(--muted-foreground); }

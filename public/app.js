@@ -203,6 +203,20 @@ function greeting() {
   if (h < 18) return { text: 'Good afternoon', icon: '☀️' };
   return { text: 'Good evening', icon: '🌙' };
 }
+/* A short verse about serving at the altar; changes once a day. */
+const VERSES = [
+  ['Serve the Lord with gladness.', 'Psalm 100:2'],
+  ['I will go to the altar of God, to God my joy.', 'Psalm 43:4'],
+  ['Whoever serves me must follow me.', 'John 12:26'],
+  ['Here am I. Send me!', 'Isaiah 6:8'],
+  ['Whatever you do, do it all for the glory of God.', '1 Corinthians 10:31'],
+  ['As for me and my household, we will serve the Lord.', 'Joshua 24:15'],
+  ['Each of you should use whatever gift you have received to serve others.', '1 Peter 4:10'],
+];
+function verseOfDay() {
+  const [t, ref] = VERSES[Math.floor(Date.now() / 86400000) % VERSES.length];
+  return `<p class="verse">✝ “${t}” (${ref})</p>`;
+}
 
 function showLogin(msg, needsSetup = false) {
   me = null; state = null;
@@ -213,9 +227,10 @@ function showLogin(msg, needsSetup = false) {
     <form class="card stack login-card" data-form="${needsSetup ? 'setup' : 'login'}">
       <div style="text-align:center">
         <img src="logo.png" alt="Altar Servers" width="72" height="72">
-        <p class="greet-kicker">${greeting().icon} ${greeting().text}!</p>
-        <h2 style="margin-top:4px">${needsSetup ? "Welcome! Let's get you set up" : 'Welcome back'}</h2>
-        <p class="muted small">${needsSetup ? 'Create the first admin account. You can add more admins/secretaries later in Settings.' : 'Log in as administrator or secretary to continue.<br>Mass leaders use the mobile app instead: <a href="/app">open the leader app</a>.'}</p>
+        <p class="greet-kicker">${greeting().icon} ${greeting().text} · Peace be with you</p>
+        <h2 style="margin-top:4px">${needsSetup ? "Welcome! Let's prepare the sacristy" : 'Welcome back to the sacristy'}</h2>
+        <p class="muted small">${needsSetup ? 'Create the first admin account. You can add more admins/secretaries later in Settings.' : 'Log in as administrator or secretary to look after our Knights of the Altar.<br>Mass leaders use the mobile app instead: <a href="/app">open the leader app</a>.'}</p>
+        ${verseOfDay()}
       </div>
       ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
       <div><label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" required style="width:100%"></div>
@@ -287,8 +302,9 @@ function viewDashboard() {
   return `
     <div class="section-head">
       <div><h2>${greeting().text}, ${esc(me)}! ${greeting().icon}</h2>
-        <div class="muted small">${pend.length ? `${pend.length} attendance record${pend.length === 1 ? ' is' : 's are'} waiting for your approval. Here's the attendance overview.`
-          : "Thank you for serving the ministry. Everything is up to date. Here's the attendance overview."}</div></div>
+        <div class="muted small">${pend.length ? `${pend.length} attendance record${pend.length === 1 ? ' is' : 's are'} waiting in the sacristy for your approval.`
+          : 'All is in order in the sacristy. Thank you for caring for our acolytes and Knights of the Altar.'}</div>
+        ${verseOfDay()}</div>
       <div class="row">
         <button data-action="dash-month" data-d="-1" aria-label="Previous month">‹</button>
         <input type="month" value="${m}" data-action="dash-month-set" aria-label="Month">
@@ -505,8 +521,8 @@ async function scheduleImage(pid, entry) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  const font = (w, s) => `${w} ${s}px Inter, system-ui, "Segoe UI", Roboto, sans-serif`;
-  const title = (w, s) => `${w} ${s}px Cinzel, Georgia, serif`;
+  const font = (w, s) => `${w} ${s}px Nunito, system-ui, "Segoe UI", Roboto, sans-serif`;
+  const title = (w, s) => `${w} ${s}px Fredoka, Nunito, system-ui, sans-serif`;
   try { await Promise.all([document.fonts.load(title(700, 56)), document.fonts.load(font(500, 30))]); } catch (e) { /* fall back to system fonts */ }
   g.fillStyle = '#fbf9f5'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#b7191c'; g.fillRect(0, 0, W, 240);
