@@ -394,3 +394,8 @@ tbody tr:hover td { background: color-mix(in oklab, var(--muted) 60%, transparen
   .grid { grid-template-columns: repeat(2, 1fr); }
   .chip { border-color: #999; background: #fff; }
 }
+
+/* Friendly greetings */
+.greet-kicker { margin: 6px 0 0; font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
+.greet-card { display: flex; flex-direction: column; gap: 2px; margin: 0 2px 12px; }
+.greet-card b { font-family: 'Cinzel', serif; font-size: 1.15rem; }

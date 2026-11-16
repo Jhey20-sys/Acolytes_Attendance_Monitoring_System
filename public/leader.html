@@ -93,13 +93,21 @@ async function call(method, url, body) {
   return data;
 }
 
+/* ---------- Greeting (time of day on this phone) ---------- */
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good morning', icon: '🌅' };
+  if (h < 18) return { text: 'Good afternoon', icon: '☀️' };
+  return { text: 'Good evening', icon: '🌙' };
+}
+
 /* ---------- Login ---------- */
 function showLogin(msg) {
   closeSheet();
   $('#app').innerHTML = `
     <form class="card stack" id="loginForm" style="margin-top:24px">
       <img class="login-logo" src="logo.png" alt="Altar Servers logo">
-      <div style="text-align:center"><h2>Altar Server Check-in</h2><p class="muted small">Login as User (Mass leader)</p></div>
+      <div style="text-align:center"><p class="greet-kicker">${greeting().icon} ${greeting().text}!</p><h2 style="margin-top:4px">Welcome, Mass leader</h2><p class="muted small">Log in to check in your altar servers.</p></div>
       ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
       <div><label for="u">User name</label><input id="u" autocomplete="username" autocapitalize="none" required style="width:100%; padding:12px"></div>
       <div><label for="p">Password</label><input id="p" type="password" autocomplete="current-password" required style="width:100%; padding:12px"></div>
@@ -140,6 +148,11 @@ function render() {
   $('#app').innerHTML = `
     <div class="lhead"><img src="logo.png" alt=""><div style="flex:1"><h1>${esc(v.ministry)}</h1><span class="muted small">👤 ${esc(v.leader)}</span></div>
       <button class="sm" id="logout">Log out</button></div>
+    <div class="greet-card"><b>${greeting().text}, ${esc(v.leader)}! ${greeting().icon}</b>
+      <span class="muted small">${locked ? 'All done. Thank you for leading this Mass. God bless! 🙏'
+        : v.date === v.today ? "Thank you for leading today's Mass. Scan each server's QR card as they arrive."
+        : v.date > v.today ? 'Getting ready for an upcoming Mass. You can record excuses ahead of time.'
+        : "You're viewing a past Mass. Finish and submit the report when you're ready."}</span></div>
     <div class="mass-card">
       <span class="k">${esc(v.mass.parishName)}</span>
       <b>${esc(v.mass.name)} · ${esc(v.mass.timeLabel)}</b>

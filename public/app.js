@@ -196,6 +196,14 @@ function shuffleParish(pid, from) {
 }
 
 /* ---------------- Login ---------------- */
+/* Friendly greeting based on the time of day on this device. */
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good morning', icon: '🌅' };
+  if (h < 18) return { text: 'Good afternoon', icon: '☀️' };
+  return { text: 'Good evening', icon: '🌙' };
+}
+
 function showLogin(msg, needsSetup = false) {
   me = null; state = null;
   stopTimers();
@@ -205,8 +213,9 @@ function showLogin(msg, needsSetup = false) {
     <form class="card stack login-card" data-form="${needsSetup ? 'setup' : 'login'}">
       <div style="text-align:center">
         <img src="logo.png" alt="Altar Servers" width="72" height="72">
-        <h2 style="margin-top:8px">${needsSetup ? 'Create the first admin account' : 'Login as Administrator'}</h2>
-        <p class="muted small">${needsSetup ? 'You can add more admins/secretaries later in Settings.' : 'Mass leaders use the mobile app instead: <a href="/app">open the leader app</a>.'}</p>
+        <p class="greet-kicker">${greeting().icon} ${greeting().text}!</p>
+        <h2 style="margin-top:4px">${needsSetup ? "Welcome! Let's get you set up" : 'Welcome back'}</h2>
+        <p class="muted small">${needsSetup ? 'Create the first admin account. You can add more admins/secretaries later in Settings.' : 'Log in as administrator or secretary to continue.<br>Mass leaders use the mobile app instead: <a href="/app">open the leader app</a>.'}</p>
       </div>
       ${msg ? `<div class="msg-err">${esc(msg)}</div>` : ''}
       <div><label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" required style="width:100%"></div>
@@ -277,7 +286,9 @@ function viewDashboard() {
 
   return `
     <div class="section-head">
-      <div><h2>Attendance Overview</h2><div class="muted small">Welcome, ${esc(me)}.</div></div>
+      <div><h2>${greeting().text}, ${esc(me)}! ${greeting().icon}</h2>
+        <div class="muted small">${pend.length ? `${pend.length} attendance record${pend.length === 1 ? ' is' : 's are'} waiting for your approval. Here's the attendance overview.`
+          : "Thank you for serving the ministry. Everything is up to date. Here's the attendance overview."}</div></div>
       <div class="row">
         <button data-action="dash-month" data-d="-1" aria-label="Previous month">‹</button>
         <input type="month" value="${m}" data-action="dash-month-set" aria-label="Month">
